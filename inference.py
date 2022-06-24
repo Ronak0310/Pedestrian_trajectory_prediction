@@ -45,6 +45,7 @@ class Inference():
         self.device = torch.device('cuda:0')
         self.half = True
         cudnn.benchmark = True
+        self.save_infer_video = 1
         
         # Checking input
         if os.path.isfile(input):
@@ -208,7 +209,7 @@ class Inference():
         
             # Save the images or videos
             if self.inference_mode == 'SingleImage':
-                self.frame = Visualize.drawBBOX(pred, im0)
+                self.frame = Visualize.drawBBOX(pred, im0, framecount)
                 cv2.imwrite(self.output, self.frame)
             
             elif self.inference_mode == 'Video':

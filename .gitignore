@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 *.pt
+*.mp4
 build/
 develop-eggs/
 dist/
