@@ -149,6 +149,44 @@ class Inference():
                 del self.trackDict[trackID][0]
 
         return trajectory_array
+    
+    def UpdateStorage_withTracker(self, output_dictionary):
+        output = []
+        for detection in self.tracker:
+            temp_dict = deepcopy(output_dictionary)
+
+            temp_dict['Tracker_ID'] = int(detection[9])
+            temp_dict['Class_ID'] = int(detection[5])
+            temp_dict['Conf_Score'] = round(detection[4] * 100, 1)
+
+            x1 = int(detection[0])
+            y1 = int(detection[1])
+            x2 = int(detection[2])
+            y2 = int(detection[3])
+            temp_dict['BBOX_TopLeft'] = (x1, y1)
+            temp_dict['BBOX_BottomRight'] = (x2, y2)
+
+            output.append(temp_dict)
+        return output
+    
+    
+    def UpdateStorage_onlyYolo(self, output_dictionary, pred):
+        output = []
+        for detection in pred:
+            temp_dict = deepcopy(output_dictionary)
+
+            temp_dict['Tracker_ID'] = None
+            temp_dict['Class_ID'] = int(detection[5].item())
+            temp_dict['Conf_Score'] = round(detection[4].item() * 100, 1)
+            
+            x1 = int(detection[0])
+            y1 = int(detection[1])
+            x2 = int(detection[2])
+            y2 = int(detection[3])
+            temp_dict['BBOX_TopLeft'] = (x1, y1)
+            temp_dict['BBOX_BottomRight'] = (x2, y2)
+
+        return output
 
 
     def runInference(self):
@@ -156,6 +194,7 @@ class Inference():
         bs = 1
         vid_path, vid_writer = None, None
 
+        output_data = []
         Visualize = Visualizer()
         dt, seen = [0.0, 0.0, 0.0, 0.0], 0
         framecount = 0
@@ -166,8 +205,8 @@ class Inference():
                 continue
             elif framecount > 72000:
                 break
-            # storing_output = {}
-            # storing_output["Video_Internal_Timer"]= videoTimer
+            storing_output = {}
+            storing_output["Video_Internal_Timer"]= videoTimer
 
             # Image Preprocessing for inference
             t1 = time_sync()
@@ -215,7 +254,19 @@ class Inference():
             elif self.inference_mode == 'Video':
                 # Update the tracker
                 self.UpdateTracker(pred)
+
+                # Storing values for post-processing
                 
+                if len(self.tracker) > 0:
+                    output_data.extend(self.UpdateStorage_withTracker(storing_output))
+                elif len(pred) > 0:
+                    print("No Trackers")
+                    output_data.extend(self.UpdateStorage_onlyYolo(storing_output, pred))
+                else:
+                    print("No Trackers/Predictions")
+                    output_data.append(storing_output)
+                
+                # Visualize the detections on frames
                 trajectory_array = []
                 stored_trajectory = self.Trajectory_points(trajectory_array)
 
@@ -248,6 +299,9 @@ class Inference():
         time_end = time_sync()
         print(f'Total time for inference (including pre and post-processing): {round(time_end-time_start, 2)}s')
         print(f'Average total fps: {round(framecount/round(time_end-time_start, 2), 2)}fps')
+
+        df = pd.DataFrame(output_data)
+        df.to_csv(f"{self.output_dir_path}/{str(self.file_stem_name)}_raw.csv")
         
 
 
