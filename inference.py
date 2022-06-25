@@ -226,6 +226,7 @@ class Inference():
         Visualize = Visualizer()
         dt, seen = [0.0, 0.0, 0.0, 0.0], 0
         framecount = 0
+        annotation_count = 0
         time_start = time_sync()
         for path, im, im0, vid_cap, s, videoTimer in dataset:
             framecount += 1
@@ -269,8 +270,9 @@ class Inference():
                 # Rescale boxes from img_size to im0 size
                 pred[:, :4] = scale_coords(im.shape[2:], pred[:, :4], im0.shape).round()
                 if self.save_annotations:
-                    self.Save_dets_to_txt(pred, framecount, im0.shape)
-                    cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{framecount}.png", im0)
+                    annotation_count += 1
+                    self.Save_dets_to_txt(pred, annotation_count, im0.shape)
+                    cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
 
                 # Print results
                 for c in pred[:, -1].unique():
@@ -287,15 +289,13 @@ class Inference():
                 self.UpdateTracker(pred)
 
                 # Storing values for post-processing
-                
-                if len(self.tracker) > 0:
-                    output_data.extend(self.UpdateStorage_withTracker(storing_output))
-                elif len(pred) > 0:
-                    print("No Trackers")
-                    output_data.extend(self.UpdateStorage_onlyYolo(storing_output, pred))
-                else:
-                    print("No Trackers/Predictions")
-                    output_data.append(storing_output)
+                if self.save_annotations:
+                    if len(self.tracker) > 0:
+                        output_data.extend(self.UpdateStorage_withTracker(storing_output))
+                    elif len(pred) > 0:
+                        output_data.extend(self.UpdateStorage_onlyYolo(storing_output, pred))
+                    else:
+                        output_data.append(storing_output)
                 
                 # Visualize the detections on frames
                 trajectory_array = []
@@ -304,8 +304,10 @@ class Inference():
                 if len(self.tracker) > 0:
                     frame = Visualize.drawTracker(stored_trajectory, im0, framecount)
                 elif len(pred) > 0:
+                    print("No Trackers")
                     frame = Visualize.drawBBOX(pred, im0, framecount)
                 else:
+                    print("No Trackers/Predictions")
                     frame = Visualize.drawEmpty(im0, framecount)
                 
                 t5 = time_sync()
