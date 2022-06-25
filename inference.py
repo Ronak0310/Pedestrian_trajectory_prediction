@@ -199,11 +199,10 @@ class Inference():
         txt_output = []
 
         for p in pred:
-            # print(p)
-            center_x = ((2 * p[0].item()) + p[2].item())/ (2 * shape[1])
-            center_y = ((2 * p[1].item()) + p[3].item())/ (2 * shape[0])
-            total_width = p[2].item() / shape[1]
-            total_height = p[3].item() / shape[0]
+            center_x = (p[0].item() + p[2].item())/ (2 * shape[1])
+            center_y = (p[1].item() + p[3].item())/ (2 * shape[0])
+            total_width = (p[2].item() - p[0].item()) / shape[1]
+            total_height = (p[3].item() - p[1].item()) / shape[0]
             class_id = p[5].item()
             txt_output.append([class_id, center_x, center_y, total_width, total_height])
         
