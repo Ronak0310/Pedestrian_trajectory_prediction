@@ -33,7 +33,7 @@ if str(ROOT) not in sys.path:
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))
 
 class Inference():
-    def __init__(self, input, model_weights, output, imgSize):        
+    def __init__(self, input, model_weights, output, imgSize, Save_annotations):        
         # Inference Params
         self.img_size = imgSize
         self.conf_thres = 0.25
@@ -46,6 +46,7 @@ class Inference():
         self.half = True
         cudnn.benchmark = True
         self.save_infer_video = 1
+        self.save_annotations = Save_annotations
         
         # Checking input
         if os.path.isfile(input):
@@ -90,9 +91,15 @@ class Inference():
             self.output_dir_path = self.parent_directory / self.file_stem_name
             if not os.path.exists(self.output_dir_path):
                 os.makedirs(self.output_dir_path)
+                if self.save_annotations:
+                    os.makedirs(self.output_dir_path/"VID_frames")
+                    os.makedirs(self.output_dir_path/"Detection_txt")
             else:
                 shutil.rmtree(self.output_dir_path)           # Removes all the subdirectories!
                 os.makedirs(self.output_dir_path)
+                if self.save_annotations:
+                    os.makedirs(self.output_dir_path/"VID_frames")
+                    os.makedirs(self.output_dir_path/"Detection_txt")
 
         # Loading Model
         model = DetectMultiBackend(self.model_weights, device=self.device, dnn=None)
@@ -187,6 +194,27 @@ class Inference():
             temp_dict['BBOX_BottomRight'] = (x2, y2)
 
         return output
+    
+    def Save_dets_to_txt(self, pred, framecount, shape):
+        txt_output = []
+
+        for p in pred:
+            # print(p)
+            center_x = ((2 * p[0].item()) + p[2].item())/ (2 * shape[1])
+            center_y = ((2 * p[1].item()) + p[3].item())/ (2 * shape[0])
+            total_width = p[2].item() / shape[1]
+            total_height = p[3].item() / shape[0]
+            class_id = p[5].item()
+            txt_output.append([class_id, center_x, center_y, total_width, total_height])
+        
+        with open(f"{self.output_dir_path}/Detection_txt/frame-{framecount}.txt", "w+") as f:
+            for i in txt_output:
+                for j in range(len(i)):
+                    if j==0:
+                        f.writelines(f"{int(i[j])} ")
+                    else:
+                        f.writelines(f"{np.round(i[j],5)} ")
+                f.writelines("\n")
 
 
     def runInference(self):
@@ -240,6 +268,9 @@ class Inference():
             if len(pred):
                 # Rescale boxes from img_size to im0 size
                 pred[:, :4] = scale_coords(im.shape[2:], pred[:, :4], im0.shape).round()
+                if self.save_annotations:
+                    self.Save_dets_to_txt(pred, framecount, im0.shape)
+                    cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{framecount}.png", im0)
 
                 # Print results
                 for c in pred[:, -1].unique():
@@ -276,10 +307,11 @@ class Inference():
                     frame = Visualize.drawBBOX(pred, im0, framecount)
                 else:
                     frame = Visualize.drawEmpty(im0, framecount)
-                   
+                
                 t5 = time_sync()
                 dt[3] += t5 - t4
-                print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                if (t3 - t2)!=0:
+                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
 
                 if self.save_infer_video:
                     if framecount == 1:  # new video
@@ -300,8 +332,9 @@ class Inference():
         print(f'Total time for inference (including pre and post-processing): {round(time_end-time_start, 2)}s')
         print(f'Average total fps: {round(framecount/round(time_end-time_start, 2), 2)}fps')
 
-        df = pd.DataFrame(output_data)
-        df.to_csv(f"{self.output_dir_path}/{str(self.file_stem_name)}_raw.csv")
+        if self.save_annotations:
+            df = pd.DataFrame(output_data)
+            df.to_csv(f"{self.output_dir_path}/{str(self.file_stem_name)}_raw.csv")
         
 
 
@@ -311,6 +344,7 @@ class Inference():
         parser.add_argument('--model_weights', type=str, default=None, help='model\'s weights path(s)')
         parser.add_argument('--output', type=str, default=None, help=['path to save result(s)', '.MP4/.mkv/.png/.jpg/.jpeg'])
         parser.add_argument('--imgSize','--img','--img_size', nargs='+', type=int, default=[480], help='inference size h,w')
+        parser.add_argument('--Save_annotations', default=False, action='store_true', help='argument to save annotations in .txt file and images of that annotations')
                
         opt = parser.parse_args()
         opt.imgSize *= 2 if len(opt.imgSize) == 1 else 1
