@@ -1,3 +1,6 @@
 # Pedestrian_trajectory_prediction
 
-![plot](/images/Sample_img.png?raw=true)
+### Project Sample-Image
+<p align="center">
+  <img src="/images/Sample_img.png" width="650" title="hover text">
+</p>
