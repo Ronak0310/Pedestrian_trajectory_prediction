@@ -317,7 +317,6 @@ class Inference():
                 if self.save_infer_video:
                     if framecount == 1:  # new video
                         final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
-                        print(final_path)
                         w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         vid_writer = cv2.VideoWriter(final_path, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (w, h))
