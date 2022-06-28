@@ -2,7 +2,7 @@
 Run inference on images and videos
 
 Usage - sources and formats:
-    $ python path/to/inference.py --input path/to/video(or)image file(.mp4 or .jpg/.png/.jpeg) 
+    $ python path/to/inference.py --input path/to/video(or)image file(.mp4/.mkv/.avi or .jpg/.png) 
                                   --model_weights path/to/trained_weights(.pt)
                                   --output path/to/save/results
                                   --imgSize 480    # image size based on your model size
