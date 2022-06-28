@@ -292,7 +292,8 @@ class Inference():
             # Save the images or videos
             if self.inference_mode == 'SingleImage':
                 self.frame = Visualize.drawBBOX(pred, im0, framecount)
-                cv2.imwrite(self.output, self.frame)
+                final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
+                cv2.imwrite(final_path, self.frame)
             
             elif self.inference_mode == 'Video':
                 # Update the tracker
@@ -342,6 +343,7 @@ class Inference():
         time_end = time_sync()
         print(f'Total time for inference (including pre and post-processing): {round(time_end-time_start, 2)}s')
         print(f'Average total fps: {round(framecount/round(time_end-time_start, 2), 2)}fps')
+        print(f"Result saved in : {final_path}")
 
         if self.save_annotations:
             df = pd.DataFrame(output_data)
