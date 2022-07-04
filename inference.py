@@ -279,10 +279,10 @@ class Inference():
             if len(pred):
                 # Rescale boxes from img_size to im0 size
                 pred[:, :4] = scale_coords(im.shape[2:], pred[:, :4], im0.shape).round()
-                if self.save_annotations:
-                    annotation_count += 1
-                    self.Save_dets_to_txt(pred, annotation_count, im0.shape)
-                    cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
+                # if self.save_annotations:
+                #     annotation_count += 1
+                #     self.Save_dets_to_txt(pred, annotation_count, im0.shape)
+                #     cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
 
                 # Print results
                 for c in pred[:, -1].unique():
@@ -301,6 +301,11 @@ class Inference():
 
                 # Storing values for post-processing
                 if self.save_annotations:
+                    annotation_count += 1
+                    storing_output["count"]= annotation_count
+                    self.Save_dets_to_txt(pred, annotation_count, im0.shape)
+                    cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
+
                     if len(self.tracker) > 0:
                         output_data.extend(self.UpdateStorage_withTracker(storing_output))
                     elif len(pred) > 0:
