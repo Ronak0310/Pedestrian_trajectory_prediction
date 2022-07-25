@@ -10,7 +10,10 @@ __pycache__/
 .Python
 *.pt
 *.mp4
+*.exe
+*.ipynb
 build/
+deep_sort/
 develop-eggs/
 dist/
 downloads/
