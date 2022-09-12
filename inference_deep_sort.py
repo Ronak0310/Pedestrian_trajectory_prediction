@@ -38,7 +38,7 @@ from deep_sort.deep_sort import DeepSort
 from deep_sort.utils.parser import get_config
 
 # from sort_yoloV5 import Sort
-# from visualizer import Visualizer
+from visualizer import Visualizer
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]
@@ -172,6 +172,8 @@ class Inference():
                 _, max_y = sorted((detection[1], detection[3]))
             elif class_id in (2,5):
                 max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            else:
+                max_y = (detection[1] + detection[3])/2
 
             trackID = int(detection[9])
             self.trackDict[trackID].append((int(center_x), int(max_y)))
@@ -180,6 +182,28 @@ class Inference():
                 output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1], self.trackDict])
                 trajectory_array.append(output_array)
                 del self.trackDict[trackID][0]
+
+        return trajectory_array
+    
+    def new_trj_points(self, trajectory_array, confs):
+        for j, (output, conf) in enumerate(zip(self.tracker, confs)):
+            bboxes = output[0:4]
+            id = output[4]
+            cls = output[5]
+            center_x = (bboxes[0] + bboxes[2])/2
+            if cls in (0,1,3,16):
+                _, max_y = sorted((bboxes[1], bboxes[3]))
+            elif cls in (2,5):
+                max_y = (bboxes[1] + bboxes[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            else:
+                max_y = (bboxes[1] + bboxes[3])/2
+
+            self.trackDict[id].append((int(center_x), int(max_y)))
+
+            if len(self.trackDict[id]) > 10: 
+                output_array = np.append(bboxes, [conf.item(), cls, 0, 0, 0 ,id, self.trackDict[id][-2][0], self.trackDict[id][-2][1], self.trackDict, 0])
+                trajectory_array.append(output_array)
+                del self.trackDict[id][0]
 
         return trajectory_array
     
@@ -248,7 +272,7 @@ class Inference():
         vid_path, vid_writer = None, None
 
         output_data = []
-        # Visualize = Visualizer()
+        Visualize = Visualizer(self.names)
         dt, seen = [0.0, 0.0, 0.0, 0.0], 0
         framecount = 0
         annotation_count = 0
@@ -304,75 +328,73 @@ class Inference():
                 confs = pred[:, 4]
                 clss = pred[:, 5]    
 
-                outputs = self.deepsort.update(xywhs.cpu(), confs.cpu(), clss.cpu(), im0)
-
                 # draw boxes for visualization
-                img = im0
-                if len(outputs) > 0:
-                    for j, (output, conf) in enumerate(zip(outputs, confs)):
-                        bboxes = output[0:4]
-                        id = output[4]
-                        cls = output[5]
-                        img = cv2.rectangle(img, (bboxes[0],bboxes[1]),(bboxes[2],bboxes[3]), (0,255,0),1,cv2.LINE_AA)
-                        img = cv2.putText(img, f"{id}:{cls}",(bboxes[0],bboxes[1]-4), 0, 0.3, (0,0,255), 1, cv2.LINE_AA)
+                # img = im0
+                # if len(self.tracker) > 0:
+                    # for j, (output, conf) in enumerate(zip(self.tracker, confs)):
+                    #     bboxes = output[0:4]
+                    #     id = output[4]
+                    #     cls = output[5]
+                    #     img = cv2.rectangle(img, (bboxes[0],bboxes[1]),(bboxes[2],bboxes[3]), (0,255,0),1,cv2.LINE_AA)
+                    #     img = cv2.putText(img, f"{id}:{cls}",(bboxes[0],bboxes[1]-4), 0, 0.3, (0,0,255), 1, cv2.LINE_AA)
 
-                cv2.imshow('frame', img)
-                cv2.waitKey(1)
+                # cv2.imshow('frame', img)
+                # cv2.waitKey(1)
                         
 
         
-            # # Save the images or videos
-            # if self.inference_mode == 'SingleImage':
-            #     # self.frame = Visualize.drawBBOX(pred, im0, framecount)
-            #     final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
-            #     # cv2.imwrite(final_path, self.frame)
-            
-            # elif self.inference_mode == 'Video':
-            #     # Update the tracker
-            #     self.UpdateTracker(pred)
-
-            #     # Storing values for post-processing
-            #     if self.save_annotations:
-            #         annotation_count += 1
-            #         #storing_output["count"]= annotation_count
-            #         self.Save_dets_to_txt(pred, annotation_count, im0.shape)
-            #         cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
-
-            #         if len(self.tracker) > 0:
-            #             output_data.extend(self.UpdateStorage_withTracker(storing_output))
-            #         elif len(pred) > 0:
-            #             output_data.extend(self.UpdateStorage_onlyYolo(storing_output, pred))
-            #         else:
-            #             output_data.append(storing_output)
+                # Save the images or videos
+                if self.inference_mode == 'SingleImage':
+                    # self.frame = Visualize.drawBBOX(pred, im0, framecount)
+                    final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
+                    # cv2.imwrite(final_path, self.frame)
                 
-            #     # Visualize the detections on frames
-            #     trajectory_array = []
-            #     stored_trajectory = self.Trajectory_points(trajectory_array)
+                elif self.inference_mode == 'Video':
+                    # Update tracker
+                    self.tracker = self.deepsort.update(xywhs.cpu(), confs.cpu(), clss.cpu(), im0)
 
-            #     if len(self.tracker) > 0:
-            #         frame = Visualize.drawTracker(stored_trajectory, im0, framecount)
-            #     elif len(pred) > 0:
-            #         print("No Trackers")
-            #         frame = Visualize.drawBBOX(pred, im0, framecount)
-            #     else:
-            #         print("No Trackers/Predictions")
-            #         frame = Visualize.drawEmpty(im0, framecount)
-                
-            #     t5 = time_sync()
-            #     dt[3] += t5 - t4
-            #     if (t3 - t2)!=0:
-            #         print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                    # Storing values for post-processing
+                    if self.save_annotations:
+                        annotation_count += 1
+                        #storing_output["count"]= annotation_count
+                        self.Save_dets_to_txt(pred, annotation_count, im0.shape)
+                        cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
 
-        #         if self.save_infer_video:
-        #             if framecount == 1:  # new video
-        #                 final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
-        #                 w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        #                 h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        #                 vid_writer = cv2.VideoWriter(final_path, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (w, h))
-        #             vid_writer.write(frame)      
+                        if len(self.tracker) > 0:
+                            output_data.extend(self.UpdateStorage_withTracker(storing_output))
+                        elif len(pred) > 0:
+                            output_data.extend(self.UpdateStorage_onlyYolo(storing_output, pred))
+                        else:
+                            output_data.append(storing_output)
+                    
+                    # Visualize the detections on frames
+                    trajectory_array = []
+                    stored_trajectory = self.new_trj_points(trajectory_array,confs)
 
-        # if self.inference_mode == 'Video':    
-        #     vid_writer.release()
+                    if len(self.tracker) > 0:
+                        frame = Visualize.drawTracker(stored_trajectory, im0, framecount)
+                    elif len(pred) > 0:
+                        print("No Trackers")
+                        frame = Visualize.drawBBOX(pred, im0, framecount)
+                    else:
+                        print("No Trackers/Predictions")
+                        frame = Visualize.drawEmpty(im0, framecount)
+                    
+                    t5 = time_sync()
+                    dt[3] += t5 - t4
+                    if (t3 - t2)!=0:
+                        print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+
+                    if self.save_infer_video:
+                        if framecount == 1:  # new video
+                            final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
+                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                            h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                            vid_writer = cv2.VideoWriter(final_path, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (w, h))
+                        vid_writer.write(frame)      
+
+        if self.inference_mode == 'Video':    
+            vid_writer.release()
 
         # Print results
         t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
@@ -380,7 +402,7 @@ class Inference():
         time_end = time_sync()
         print(f'Total time for inference (including pre and post-processing): {round(time_end-time_start, 2)}s')
         print(f'Average total fps: {round(framecount/round(time_end-time_start, 2), 2)}fps')
-        # print(f"Result saved in : {final_path}")
+        print(f"Result saved in : {final_path}")
 
         if self.save_annotations:
             df = pd.DataFrame(output_data)

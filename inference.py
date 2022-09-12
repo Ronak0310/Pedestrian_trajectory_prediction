@@ -164,6 +164,8 @@ class Inference():
                 _, max_y = sorted((detection[1], detection[3]))
             elif class_id in (2,5):
                 max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            else:
+                max_y = (detection[1] + detection[3])/2
 
             trackID = int(detection[9])
             self.trackDict[trackID].append((int(center_x), int(max_y)))
@@ -185,6 +187,15 @@ class Inference():
             temp_dict['Tracker_ID'] = int(detection[9])
             temp_dict['Class_ID'] = int(detection[5])
             temp_dict['Conf_Score'] = round(detection[4] * 100, 1)
+            class_id = detection[5]
+            center_x = (detection[0] + detection[2])/2 
+
+            if class_id in (0,1,3,16):
+                _, max_y = sorted((detection[1], detection[3]))
+            elif class_id in (2,5):
+                max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            else:
+                max_y = (detection[1] + detection[3])/2
 
             x1 = int(detection[0])
             y1 = int(detection[1])
@@ -192,6 +203,7 @@ class Inference():
             y2 = int(detection[3])
             temp_dict['BBOX_TopLeft'] = (x1, y1)
             temp_dict['BBOX_BottomRight'] = (x2, y2)
+            temp_dict['Center_pt'] = (center_x, max_y)
 
             output.append(temp_dict)
         return output
@@ -205,6 +217,15 @@ class Inference():
             temp_dict['Tracker_ID'] = None
             temp_dict['Class_ID'] = int(detection[5].item())
             temp_dict['Conf_Score'] = round(detection[4].item() * 100, 1)
+            class_id = detection[5]
+            center_x = (detection[0] + detection[2])/2 
+
+            if class_id in (0,1,3,16):
+                _, max_y = sorted((detection[1], detection[3]))
+            elif class_id in (2,5):
+                max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            else:
+                max_y = (detection[1] + detection[3])/2
             
             x1 = int(detection[0])
             y1 = int(detection[1])
@@ -212,6 +233,7 @@ class Inference():
             y2 = int(detection[3])
             temp_dict['BBOX_TopLeft'] = (x1, y1)
             temp_dict['BBOX_BottomRight'] = (x2, y2)
+            temp_dict['Center_pt'] = (center_x, max_y)
 
         return output
     
@@ -277,6 +299,7 @@ class Inference():
 
             # NMS
             pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, self.classes, self.agnostic_nms, max_det=self.max_det)[0]
+            print(pred)
             t4 = time_sync()
             dt[2] += t4 - t3
 
@@ -307,8 +330,9 @@ class Inference():
                 # Storing values for post-processing
                 if self.save_annotations:
                     annotation_count += 1
-                    self.Save_dets_to_txt(pred, annotation_count, im0.shape)
-                    cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
+                    storing_output["count"]= annotation_count
+                    # self.Save_dets_to_txt(pred, annotation_count, im0.shape)
+                    # cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
 
                     if len(self.tracker) > 0:
                         output_data.extend(self.UpdateStorage_withTracker(storing_output))
@@ -324,16 +348,16 @@ class Inference():
                 if len(self.tracker) > 0:
                     frame = Visualize.drawTracker(stored_trajectory, im0, framecount)
                 elif len(pred) > 0:
-                    print("No Trackers")
+                    # print("No Trackers")
                     frame = Visualize.drawBBOX(pred, im0, framecount)
                 else:
-                    print("No Trackers/Predictions")
+                    # print("No Trackers/Predictions")
                     frame = Visualize.drawEmpty(im0, framecount)
                 
                 t5 = time_sync()
                 dt[3] += t5 - t4
-                if (t3 - t2)!=0:
-                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                # if (t3 - t2)!=0:
+                #     print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
 
                 if self.view_img:
                     cv2.imshow('frame', frame)
