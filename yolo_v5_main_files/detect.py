@@ -116,7 +116,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     # Run inference
     model.warmup(imgsz=(1 if pt else bs, 3, *imgsz), half=half)  # warmup
     dt, seen = [0.0, 0.0, 0.0], 0
-    for path, im, im0s, vid_cap, s in dataset:
+    for path, im, im0s, vid_cap, s, timer in dataset:
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -125,6 +125,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             im = im[None]  # expand for batch dim
         t2 = time_sync()
         dt[0] += t2 - t1
+        im = im.reshape((1,3,640,512))
 
         # Inference
         visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False

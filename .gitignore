@@ -10,6 +10,7 @@ __pycache__/
 .Python
 *.pt
 *.mp4
+*.avi
 *.exe
 *.ipynb
 build/

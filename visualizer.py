@@ -150,14 +150,14 @@ class Visualizer():
             )
             
             # Use kalman_filter to predict next point and draw heading arrow in that direction
-            if type(track_pts)==defaultdict:
-                for pt in track_pts[tracker_id]:
-                    # cv2.circle(frame, (pt[0], pt[1]), 1, (0,0,255), -1, cv2.LINE_AA)
-                    predicted = self.kf.predict(pt[0], pt[1])
-                pred = predicted
-                for i in range(2):
-                    pred = self.kf.predict(pred[0], pred[1])
-                cv2.arrowedLine(frame, (cx1,cy1), (int(pred[0]),int(pred[1])), (255,0,0),1)
+            # if type(track_pts)==defaultdict:
+            #     for pt in track_pts[tracker_id]:
+            #         # cv2.circle(frame, (pt[0], pt[1]), 1, (0,0,255), -1, cv2.LINE_AA)
+            #         predicted = self.kf.predict(pt[0], pt[1])
+            #     pred = predicted
+            #     for i in range(2):
+            #         pred = self.kf.predict(pred[0], pred[1])
+            #     cv2.arrowedLine(frame, (cx1,cy1), (int(pred[0]),int(pred[1])), (255,0,0),1)
             
             # if type(box_pts)==defaultdict:
             #     for pt in box_pts[tracker_id]:

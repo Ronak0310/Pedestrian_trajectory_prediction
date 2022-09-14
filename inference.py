@@ -29,9 +29,9 @@ import shutil
 import sys
 sys.path.append('./yolo_v5_main_files')
 from models.common import DetectMultiBackend, AutoShape
-from utils.datasets import LoadImages
+from utils.datasets import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
 from utils.torch_utils import time_sync
-from utils.general import LOGGER, non_max_suppression, scale_coords, check_img_size, print_args
+from utils.general import LOGGER, non_max_suppression, scale_coords, check_img_size, print_args, check_file
 from hubconf import custom
 
 from sort_yoloV5 import Sort
@@ -74,9 +74,16 @@ class Inference():
             else:
                 print("Invalid input file. The file should be an image or a video !!")
                 exit(-1)
+        
+        elif os.listdir(input)[0][-3:] in (IMG_FORMATS + VID_FORMATS):
+            self.input = input
+            self.inference_mode = 'Folder'
+            print("Input file is a folder of images")
+        
         else:
             print("Input file doesn't exist. Check the input path")
             exit(-1)
+            
                  
         # Checking weights file
         if os.path.isfile(model_weights):
@@ -277,7 +284,6 @@ class Inference():
                 break
             storing_output = {}
             storing_output["Video_Internal_Timer"]= videoTimer
-
             # Image Preprocessing for inference
             t1 = time_sync()
             im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
@@ -299,7 +305,6 @@ class Inference():
 
             # NMS
             pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, self.classes, self.agnostic_nms, max_det=self.max_det)[0]
-            print(pred)
             t4 = time_sync()
             dt[2] += t4 - t3
 
@@ -320,10 +325,14 @@ class Inference():
             # Save the images or videos
             if self.inference_mode == 'SingleImage':
                 self.frame = Visualize.drawBBOX(pred, im0, framecount)
-                final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
-                cv2.imwrite(final_path, self.frame)
+                img_name = path.split('\\')[-1]
+                cv2.imwrite(f"{self.output_dir_path}/{img_name}", self.frame)
+                t5 = time_sync()
+                dt[3] += t5 - t4
+                if (t3 - t2)!=0:
+                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
             
-            elif self.inference_mode == 'Video':
+            elif self.inference_mode == 'Video' or self.inference_mode == 'Folder':
                 # Update the tracker
                 self.UpdateTracker(pred)
 
@@ -331,8 +340,8 @@ class Inference():
                 if self.save_annotations:
                     annotation_count += 1
                     storing_output["count"]= annotation_count
-                    # self.Save_dets_to_txt(pred, annotation_count, im0.shape)
-                    # cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
+                    self.Save_dets_to_txt(pred, annotation_count, im0.shape)
+                    cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
 
                     if len(self.tracker) > 0:
                         output_data.extend(self.UpdateStorage_withTracker(storing_output))
@@ -356,22 +365,38 @@ class Inference():
                 
                 t5 = time_sync()
                 dt[3] += t5 - t4
-                # if (t3 - t2)!=0:
-                #     print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                if (t3 - t2)!=0:
+                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
 
                 if self.view_img:
                     cv2.imshow('frame', frame)
                     cv2.waitKey(1)
 
-                if self.save_infer_video:
-                    if framecount == 1:  # new video
-                        final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
-                        w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        vid_writer = cv2.VideoWriter(final_path, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (w, h))
-                    vid_writer.write(frame)      
+                if self.inference_mode == 'Folder':
+                    img_name = path.split('\\')[-1]
+                    if framecount == 1:
+                        img_path = os.path.join(self.output_dir_path,"inference_imgs")
+                        os.mkdir(img_path)
+                    cv2.imwrite(f"{img_path}/{img_name}", frame)
 
-        if self.inference_mode == 'Video':    
+                if self.save_infer_video:
+                    if self.inference_mode == 'Folder':
+                        if framecount == 1:  # new video
+                            final_path = self.output_dir_path
+                            w = 640 
+                            h = 512 
+                            vid_writer = cv2.VideoWriter(f"{final_path}/out.avi", cv2.VideoWriter_fourcc(*'XVID'), 30, (w, h))
+                        vid_writer.write(frame)  
+
+                    elif self.inference_mode == 'Video':
+                            if framecount == 1:  # new video
+                                final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
+                                w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                                h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                                vid_writer = cv2.VideoWriter(final_path, cv2.VideoWriter_fourcc(*'XVID'), self.fps, (w, h))
+                            vid_writer.write(frame)
+
+        if self.inference_mode == 'Video' or self.inference_mode == 'Folder':    
             vid_writer.release()
 
         # Print results
