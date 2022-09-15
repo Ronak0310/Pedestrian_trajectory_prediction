@@ -102,7 +102,20 @@ class Inference():
         
         # Checking output
         if output == None:
-            self.output = self.input.split('/')[-1]
+            self.output = self.input.split('\\')[-1]
+            self.output = self.output.split('.')[0]
+            self.output_dir_path = os.path.join('results',self.output)
+            if not os.path.exists(self.output_dir_path):
+                os.makedirs(self.output_dir_path)
+                if self.save_annotations:
+                    os.makedirs(self.output_dir_path/"VID_frames")
+                    os.makedirs(self.output_dir_path/"Detection_txt")
+            else:
+                shutil.rmtree(self.output_dir_path)           # Removes all the subdirectories!
+                os.makedirs(self.output_dir_path)
+                if self.save_annotations:
+                    os.makedirs(self.output_dir_path/"VID_frames")
+                    os.makedirs(self.output_dir_path/"Detection_txt")
         else:
             self.output = output
             __output_path_processing = Path(self.output)
@@ -326,6 +339,7 @@ class Inference():
             if self.inference_mode == 'SingleImage':
                 self.frame = Visualize.drawBBOX(pred, im0, framecount)
                 img_name = path.split('\\')[-1]
+                final_path = f"{self.output_dir_path}"
                 cv2.imwrite(f"{self.output_dir_path}/{img_name}", self.frame)
                 t5 = time_sync()
                 dt[3] += t5 - t4
@@ -391,6 +405,8 @@ class Inference():
                     elif self.inference_mode == 'Video':
                             if framecount == 1:  # new video
                                 final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
+                                if not final_path.endswith('.mp4' or '.avi'):
+                                    final_path = f"{final_path}.avi"
                                 w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                                 h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                                 vid_writer = cv2.VideoWriter(final_path, cv2.VideoWriter_fourcc(*'XVID'), self.fps, (w, h))
