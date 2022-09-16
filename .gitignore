@@ -13,6 +13,7 @@ __pycache__/
 *.avi
 *.exe
 *.ipynb
+*.csv
 build/
 deep_sort/
 develop-eggs/

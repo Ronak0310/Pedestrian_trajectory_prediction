@@ -31,6 +31,7 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))
 class PostProcess():
     def __init__(self, data_file, input_video, output_video):
         self.detections_dataframe = pd.read_csv(data_file, index_col=[0])
+        self.output_vid = output_video
         __output_video_original_path = Path(output_video)
         self.file_name = __output_video_original_path.stem
         self.parent_directory = __output_video_original_path.parents[0]
@@ -53,10 +54,18 @@ class PostProcess():
         self.outputfile_name = self.output_directory / __output_video_original_path.name
         self.video_fps = 30
         self.num_processes = 2 #int(mp.cpu_count() * 0.75)
-        self.Visualize = Visualizer()
         self.trackDict = defaultdict(list)
         self.angleDict = defaultdict(list)
         self.kf = KalmanFilter()
+        self.names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 
+                      'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 
+                      'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 
+                      'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 
+                      'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 
+                      'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 
+                      'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 
+                      'bike', 'hydrant', 'motor', 'rider', 'light', 'sign', 'motor vehicle', 'human face', 'hair drier', 'license plate']
+        self.Visualize = Visualizer(self.names)
         
 
     def removeErrorTimers(self, df):
@@ -102,107 +111,106 @@ class PostProcess():
 
         return list_grouped_by_frametimes
     
-    def groupedData_toVideoWriter(self, num_processes):
+    def groupedData_toVideoWriter(self, df, list_grouped_by_frametimes):
         framecounter = 0
         self.video_cap = cv2.VideoCapture(self.input_video)
         self.frame_width = int(self.video_cap.get(3))
         self.frame_height = int(self.video_cap.get(4))
         self.video_writer = cv2.VideoWriter()
-        min_vid_timer = int(self.final_df['Video_Internal_Timer'].min())
-        max_vid_timer = int(self.final_df['Video_Internal_Timer'].max())
+        min_vid_timer = int(df['Video_Internal_Timer'].min())
+        max_vid_timer = int(df['Video_Internal_Timer'].max())
         
-        total_frames = int((max_vid_timer - min_vid_timer)/(1000/self.video_fps)) + 1
-        frame_jump_unit =  total_frames// self.num_processes
+        total_frames= int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        pbar = tqdm(total=total_frames)
+        
         self.video_cap.set(cv2.CAP_PROP_POS_MSEC, min_vid_timer)
-        self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_jump_unit * num_processes)
-        self.video_writer.open("output_{}.mp4".format(num_processes), cv2.VideoWriter_fourcc(*'mp4v'), 30, (self.frame_width,self.frame_height), True)
-        pbar = tqdm(total=frame_jump_unit, leave=False, bar_format='{l_bar}{bar:20}{r_bar}{bar:-10b}')
+        self.video_writer = cv2.VideoWriter(f"{self.output_directory}\{self.output_vid}", cv2.VideoWriter_fourcc(*'XVID'), 30, (self.frame_width,self.frame_height))
 
-        try:
-            while framecounter < frame_jump_unit:
-                ret, frame = self.video_cap.read()
-                if ret:
-                    vid_timer = int(self.video_cap.get(cv2.CAP_PROP_POS_MSEC))
+        while self.video_cap.isOpened():
+            ret, frame = self.video_cap.read()
+            if ret:
+                vid_timer = int(self.video_cap.get(cv2.CAP_PROP_POS_MSEC))
+
+                pbar.update(1)
                 
-                    if vid_timer > max_vid_timer:
-                        break
-
-                    pbar.update(1)
+                for data in list_grouped_by_frametimes:
+                    df_frametime = data[0]['Video_Internal_Timer']
                     
-                    for data in self.groupedByFrametime:
-                        df_frametime = data[0]['Video_Internal_Timer']
-                        
-                        # Checking for interal_timer from .csv file and matching it with the internal timer from video file (For syncing frames)
-                        if df_frametime == vid_timer:
-                            framecounter += 1
-                            #print(f"[INFO] Saving frame {framecounter}")
-                            outer_array = []
-                            for detection in data:
-                                if not pd.isna(detection['Tracker_ID']):
-                                    # Drawing Trackers
-                                    detection_array = []
-                                    x1 = detection['BBOX_TopLeft_x']
-                                    y1 = detection['BBOX_TopLeft_y']
-                                    x2 = detection['BBOX_BottomRight_x']
-                                    y2 = detection['BBOX_BottomRight_y']
-                                    center_x = int((int(x1)+int(x2))/2)
-                                    if str(detection['Class_ID']) != "nan":
-                                        if detection['Class_ID'] in (0,1,3,16):
-                                            _, center_y = sorted((detection[1], detection[3]))
-                                        elif detection['Class_ID'] in (2,5):
-                                            center_y = (detection[1] + detection[3])/2
-                                    else:
-                                        _, center_y = sorted((detection[1], detection[3]))
-                                    trk_id = int(detection['Tracker_ID'])
-                                    self.trackDict[trk_id].append((int(center_x),int(center_y)))
-                                    detection_array.append(int(x1))#0
-                                    detection_array.append(int(y1))#1
-                                    detection_array.append(int(x2))#2
-                                    detection_array.append(int(y2))#3
-                                    if not pd.isna(detection['Conf_Score']):
-                                        detection_array.append(detection['Conf_Score']/100)#4    
-                                    else:
-                                        detection_array.append(-1)
-                                    detection_array.append(detection['Class_ID'])#5
-                                    detection_array.extend([0, 0, 0]) # Placeholder values. The visualizer function doesn't need these but kept in places to align with the indices.
-                                    detection_array.append(detection['Tracker_ID'])#9
-                                    detection_array.append(detection['Arrow_points'][0])#10
-                                    detection_array.append(detection['Arrow_points'][1])#11
-                                    if len(self.trackDict[trk_id])>10:
-                                        detection_array.append(self.trackDict[trk_id][-2][0])#12
-                                        detection_array.append(self.trackDict[trk_id][-2][1])
-                                        detection_array.append(self.trackDict)
-                                        del self.trackDict[trk_id][0]
-                                    outer_array.append(detection_array)
-
-                                elif not pd.isna(detection['Class_ID']):
-                                    # Drawing just BBOXes
-                                    detection_array = []
-                                    x1 = detection['BBOX_TopLeft_x']
-                                    y1 = detection['BBOX_TopLeft_y']
-                                    x2 = detection['BBOX_BottomRight_x']
-                                    y2 = detection['BBOX_BottomRight_y']
-                                    detection_array.append(int(x1))
-                                    detection_array.append(int(y1))
-                                    detection_array.append(int(x2))
-                                    detection_array.append(int(y2))
-                                    detection_array.append(detection['Conf_Score']/100)
-                                    detection_array.append(detection['Class_ID'])
-                                    outer_array.append(detection_array)
-
+                    # Checking for interal_timer from .csv file and matching it with the internal timer from video file (For syncing frames)
+                    if df_frametime == vid_timer:
+                        framecounter += 1
+                        #print(f"[INFO] Saving frame {framecounter}")
+                        outer_array = []
+                        for detection in data:
+                            if not pd.isna(detection['Tracker_ID']):
+                                # Drawing Trackers
+                                detection_array = []
+                                x1 = detection['BBOX_TopLeft_x']
+                                y1 = detection['BBOX_TopLeft_y']
+                                x2 = detection['BBOX_BottomRight_x']
+                                y2 = detection['BBOX_BottomRight_y']
+                                center_x = int((int(x1)+int(x2))/2)
+                                if str(detection['Class_ID']) != "nan":
+                                    if detection['Class_ID'] in (0,1,3,16):
+                                        _, center_y = sorted((int(y1), int(y2)))
+                                    elif detection['Class_ID'] in (2,5):
+                                        center_y = (int(y1)+ int(y2))/2
                                 else:
-                                    # No Detections/Trackers. Just drawing the minimap (if enabled)
-                                    image = self.Visualize.drawEmpty(frame, framecounter)
+                                    _, center_y = sorted((int(y1), int(y2)))
+                                trk_id = int(detection['Tracker_ID'])
+                                self.trackDict[trk_id].append((int(center_x),int(center_y)))
+                                detection_array.append(int(x1))#0
+                                detection_array.append(int(y1))#1
+                                detection_array.append(int(x2))#2
+                                detection_array.append(int(y2))#3
+                                if not pd.isna(detection['Conf_Score']):
+                                    detection_array.append(detection['Conf_Score']/100)#4    
+                                else:
+                                    detection_array.append(-1)
+                                detection_array.append(detection['Class_ID'])#5
+                                detection_array.extend([0, 0, 0]) # Placeholder values. The visualizer function doesn't need these but kept in places to align with the indices.
+                                detection_array.append(detection['Tracker_ID'])#9
+                                detection_array.append(detection['Arrow_points'][0])#10
+                                detection_array.append(detection['Arrow_points'][1])#11
+                                if len(self.trackDict[trk_id])>10:
+                                    # detection_array.append(self.trackDict[trk_id][-2][0])#12
+                                    # detection_array.append(self.trackDict[trk_id][-2][1])#13
+                                    detection_array.append(self.trackDict)#12
+                                    del self.trackDict[trk_id][0]
+                                detection_array.extend([0])#13
+                                outer_array.append(detection_array)
 
-                            image = self.Visualize.drawTracker(outer_array, frame, framecounter)
-                            self.video_writer.write(image)
+                            elif not pd.isna(detection['Class_ID']):
+                                # Drawing just BBOXes
+                                detection_array = []
+                                x1 = detection['BBOX_TopLeft_x']
+                                y1 = detection['BBOX_TopLeft_y']
+                                x2 = detection['BBOX_BottomRight_x']
+                                y2 = detection['BBOX_BottomRight_y']
+                                detection_array.append(int(x1))
+                                detection_array.append(int(y1))
+                                detection_array.append(int(x2))
+                                detection_array.append(int(y2))
+                                detection_array.append(detection['Conf_Score']/100)
+                                detection_array.append(detection['Class_ID'])
+                                detection_array.extend([0, 0, 0, 0, 0, 0, 0, 0]) # Placeholder values. The visualizer function doesn't need these but kept in places to align with the indices.
+                                outer_array.append(detection_array)
 
-                else:
-                    break
-        except:
-            # Release resources
-            self.video_cap.release()
-            self.video_writer.release() 
+                            else:
+                                # No Detections/Trackers. Just drawing the minimap (if enabled)
+                                image = self.Visualize.drawEmpty(frame, framecounter)
+
+                        if framecounter>1:
+                            if vid_timer == min_vid_timer:
+                                outer_array = [[0,0,0,0,0,0,0,0,0,0,0,0,0]]
+
+                        image = self.Visualize.drawTracker(outer_array, frame, framecounter)
+                        # cv2.imshow('frame', image)
+                        # cv2.waitKey(10)
+                        self.video_writer.write(image)
+
+            else:
+                break
 
         # Release resources
         pbar.close()
@@ -488,7 +496,7 @@ class PostProcess():
                 previous_point = -1
                 velocity_estimation = []
 
-                for vid_timer, x1, y1, x2, y2, class_id in bbox_positions: 
+                for vid_timer, x1, y1, x2, y2, class_id in bbox_positions:
                     center_x = (x1 + x2)/2
                     if str(class_id) != "nan":
                         if class_id in (0,1,3,16):
@@ -660,8 +668,10 @@ class PostProcess():
         print('\nNow, saving the video ...')
 
         # Save video
-        self.groupedByFrametime = self.group_by_internalTimer(self.final_df)
-        self.multi_process()
+        # self.groupedByFrametime = self.group_by_internalTimer(self.final_df)
+        # self.multi_process()
+        groupedByFrametime = self.group_by_internalTimer(self.final_df)
+        self.groupedData_toVideoWriter(self.final_df, groupedByFrametime)
 
 def parser_opt():
     parser = argparse.ArgumentParser()

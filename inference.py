@@ -2,7 +2,7 @@
 Run inference on images and videos
 
 Usage - sources and formats:
-    $ python path/to/inference.py --input path/to/video(or)image file(.mp4/.mkv/.avi or .jpg/.png) 
+    $ python path/to/inference.py --input path/to/video(or)image file(.mp4/.mkv/.avi or .jpg/.png) | path/to/folder of images
                                   --model_weights path/to/trained_weights(.pt)
                                   --output path/to/save/results
                                   --imgSize 480 or 640    # image size based on your model size
@@ -63,7 +63,6 @@ class Inference():
         
         # Checking input
         if os.path.isfile(input):
-            # Further functionality needs to be added for Folder Inference :))
             if input[-4:] in ['.png', '.jpg']:
                self.input = input
                self.inference_mode = 'SingleImage'
@@ -108,14 +107,14 @@ class Inference():
             if not os.path.exists(self.output_dir_path):
                 os.makedirs(self.output_dir_path)
                 if self.save_annotations:
-                    os.makedirs(self.output_dir_path/"VID_frames")
-                    os.makedirs(self.output_dir_path/"Detection_txt")
+                    os.makedirs(os.path.join(self.output_dir_path,"VID_frames"))
+                    os.makedirs(os.path.join(self.output_dir_path,"Detection_txt"))
             else:
                 shutil.rmtree(self.output_dir_path)           # Removes all the subdirectories!
                 os.makedirs(self.output_dir_path)
                 if self.save_annotations:
-                    os.makedirs(self.output_dir_path/"VID_frames")
-                    os.makedirs(self.output_dir_path/"Detection_txt")
+                    os.makedirs(os.path.join(self.output_dir_path,"VID_frames"))
+                    os.makedirs(os.path.join(self.output_dir_path,"Detection_txt"))
         else:
             self.output = output
             __output_path_processing = Path(self.output)
@@ -125,14 +124,14 @@ class Inference():
             if not os.path.exists(self.output_dir_path):
                 os.makedirs(self.output_dir_path)
                 if self.save_annotations:
-                    os.makedirs(self.output_dir_path/"VID_frames")
-                    os.makedirs(self.output_dir_path/"Detection_txt")
+                    os.makedirs(os.path.join(self.output_dir_path,"VID_frames"))
+                    os.makedirs(os.path.join(self.output_dir_path,"Detection_txt"))
             else:
                 shutil.rmtree(self.output_dir_path)           # Removes all the subdirectories!
                 os.makedirs(self.output_dir_path)
                 if self.save_annotations:
-                    os.makedirs(self.output_dir_path/"VID_frames")
-                    os.makedirs(self.output_dir_path/"Detection_txt")
+                    os.makedirs(os.path.join(self.output_dir_path,"VID_frames"))
+                    os.makedirs(os.path.join(self.output_dir_path,"Detection_txt"))
 
         # Loading Model
         model = DetectMultiBackend(self.model_weights, device=self.device, dnn=None)
@@ -297,6 +296,7 @@ class Inference():
                 break
             storing_output = {}
             storing_output["Video_Internal_Timer"]= videoTimer
+            print(framecount)
             # Image Preprocessing for inference
             t1 = time_sync()
             im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
@@ -371,21 +371,21 @@ class Inference():
                 if len(self.tracker) > 0:
                     frame = Visualize.drawTracker(stored_trajectory, im0, framecount)
                 elif len(pred) > 0:
-                    # print("No Trackers")
                     frame = Visualize.drawBBOX(pred, im0, framecount)
                 else:
-                    # print("No Trackers/Predictions")
                     frame = Visualize.drawEmpty(im0, framecount)
                 
                 t5 = time_sync()
                 dt[3] += t5 - t4
-                if (t3 - t2)!=0:
-                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                # if (t3 - t2)!=0:
+                #     print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
 
+                # show live detection if view_img flag is true
                 if self.view_img:
                     cv2.imshow('frame', frame)
                     cv2.waitKey(1)
 
+                # save images after dtections if inference mode is folder of images
                 if self.inference_mode == 'Folder':
                     img_name = path.split('\\')[-1]
                     if framecount == 1:
@@ -394,6 +394,7 @@ class Inference():
                     cv2.imwrite(f"{img_path}/{img_name}", frame)
 
                 if self.save_infer_video:
+                    # save video infernce 
                     if self.inference_mode == 'Folder':
                         if framecount == 1:  # new video
                             final_path = self.output_dir_path
@@ -425,21 +426,21 @@ class Inference():
 
         if self.save_annotations:
             df = pd.DataFrame(output_data)
-            df.to_csv(f"{self.output_dir_path}/{str(self.file_stem_name)}_raw.csv")
+            name = str(self.output.split('\\')[-1].split('.')[0])
+            df.to_csv(f"{self.output_dir_path}/{name}_raw.csv")
         
 
 
     def parse_opt():
         parser = argparse.ArgumentParser()
-        parser.add_argument('--input', type=str, default=None, help=['path to input file(s)', '.MP4/.mkv/.png/.jpg/.jpeg'])
+        parser.add_argument('--input', type=str, default=None, help=['path to input file(s)', '.MP4|.mkv|.png|.jpg|.jpeg|path to folder of images'])
         parser.add_argument('--model_weights', type=str, default=None, help='model\'s weights path(s)')
-        parser.add_argument('--output', type=str, default=None, help=['path to save result(s)', '.MP4/.mkv/.png/.jpg/.jpeg'])
-        parser.add_argument('--imgSize','--img','--img_size', nargs='+', type=int, default=[640], help='inference size h,w')
+        parser.add_argument('--output', type=str, default=None, help=['path to save result(s)', '.MP4|.mkv|.png|.jpg|.jpeg'])
+        parser.add_argument('--imgSize','--img','--img_size', nargs='+', type=int, default=(640,640), help='inference size h,w')
         parser.add_argument('--view_img', default=False, action='store_true', help='view image along with inference')
         parser.add_argument('--Save_annotations', default=False, action='store_true', help='argument to save annotations in .txt file and images of that annotations')
                
         opt = parser.parse_args()
-        opt.imgSize *= 2 if len(opt.imgSize) == 1 else 1
         print_args(FILE.stem, opt)
         return opt
 

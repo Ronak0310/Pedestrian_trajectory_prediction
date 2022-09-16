@@ -1,5 +1,4 @@
 from pathlib import Path
-from turtle import color
 import cv2
 import numpy as np
 from collections import defaultdict
@@ -117,7 +116,7 @@ class Visualizer():
             color = colors(classID)
             cls = self.names[classID] if self.names else classID
 
-            cx1, cy1 = int(detection[-4]), int(detection[-3])   # previous frame points
+            cx1, cy1 = int(detection[10]), int(detection[11])   # previous frame points
             track_pts = detection[-2]
             box_pts = detection[-1]
             
