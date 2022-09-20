@@ -117,8 +117,7 @@ class Visualizer():
             cls = self.names[classID] if self.names else classID
 
             cx1, cy1 = int(detection[10]), int(detection[11])   # previous frame points
-            track_pts = detection[-2]
-            box_pts = detection[-1]
+            track_pts = detection[-1]
             
             # Displays the main bbox and add overlay to make bbox transparent
             overlay = frame.copy()
@@ -153,23 +152,35 @@ class Visualizer():
             #     for pt in track_pts[tracker_id]:
             #         # cv2.circle(frame, (pt[0], pt[1]), 1, (0,0,255), -1, cv2.LINE_AA)
             #         predicted = self.kf.predict(pt[0], pt[1])
+            #         w = pt[2]
+            #         h = pt[3]
+
             #     pred = predicted
-            #     for i in range(2):
+            #     for i in range(10):
             #         pred = self.kf.predict(pred[0], pred[1])
-            #     cv2.arrowedLine(frame, (cx1,cy1), (int(pred[0]),int(pred[1])), (255,0,0),1)
+            #     pred_box_left = (int(pred[0]-w/2) , int(pred[1]-h/2))
+            #     pred_box_right = (int(pred[0]+w/2) , int(pred[1]+h/2))
+            #     cv2.rectangle(frame, (int(pred_box_left[0]), int(pred_box_left[1])), 
+            #                  (int(pred_box_right[0]), int(pred_box_right[1])), 
+            #                  (0,0,255), thickness=1, lineType=cv2.LINE_AA)
+                # cv2.arrowedLine(frame, (cx1,cy1), (int(pred[0]),int(pred[1])), (255,0,0),1)
             
             # if type(box_pts)==defaultdict:
             #     for pt in box_pts[tracker_id]:
-            #         predicted_box_left = self.kf.predict(pt[0], pt[1])
-            #         predicted_box_right = self.kf.predict(pt[2], pt[3])
+            #         # predicted_box_left = self.kf.predict(pt[0], pt[1])
+            #         # predicted_box_right = self.kf.predict(pt[2], pt[3])
+            #         predicted_box_ct = self.kf.predict(pt[0], pt[1])
+            #         predicted_box_wh = self.kf.predict(pt[2], pt[3])
             #     # predicted_box_left = self.kf.predict(box_pts[tracker_id][-1][0], box_pts[tracker_id][-1][1])
             #     # predicted_box_right = self.kf.predict(box_pts[tracker_id][-1][2], box_pts[tracker_id][-1][3])
-            #     pred_box_left = predicted_box_left
-            #     pred_box_right = predicted_box_right
-            #     # for i in range(2):
-            #     #     pred_box_left = self.kf.predict(pred_box_left[0], pred_box_left[1])
-            #     #     pred_box_right = self.kf.predict(pred_box_right[0], pred_box_right[1])
+            #     pred_box_ct = predicted_box_ct
+            #     pred_box_wh = predicted_box_wh
+            #     for i in range(2):
+            #         pred_box_ct = self.kf.predict(pred_box_ct[0], pred_box_ct[1])
+            #         pred_box_wh = self.kf.predict(pred_box_wh[0], pred_box_wh[1])
                 
+            #     pred_box_left = (int(pred_box_ct[0]-pred_box_wh[0]/2) , int(pred_box_ct[1]-pred_box_wh[1]/2))
+            #     pred_box_right = (int(pred_box_ct[0]+pred_box_wh[0]/2) , int(pred_box_ct[1]+pred_box_wh[1]/2))
             #     cv2.rectangle(frame, (int(pred_box_left[0]), int(pred_box_left[1])), 
             #                  (int(pred_box_right[0]), int(pred_box_right[1])), 
             #                  (0,0,255), thickness=1, lineType=cv2.LINE_AA)

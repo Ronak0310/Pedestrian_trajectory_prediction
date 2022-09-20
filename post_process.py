@@ -124,7 +124,7 @@ class PostProcess():
         pbar = tqdm(total=total_frames)
         
         self.video_cap.set(cv2.CAP_PROP_POS_MSEC, min_vid_timer)
-        self.video_writer = cv2.VideoWriter(f"{self.output_directory}\{self.output_vid}", cv2.VideoWriter_fourcc(*'XVID'), 30, (self.frame_width,self.frame_height))
+        self.video_writer = cv2.VideoWriter(f"{self.output_directory}\{self.output_vid}", cv2.VideoWriter_fourcc(*'mp4v'), 30, (self.frame_width,self.frame_height))
 
         while self.video_cap.isOpened():
             ret, frame = self.video_cap.read()
@@ -150,15 +150,18 @@ class PostProcess():
                                 x2 = detection['BBOX_BottomRight_x']
                                 y2 = detection['BBOX_BottomRight_y']
                                 center_x = int((int(x1)+int(x2))/2)
+                                w = (int(x2) - int(x1))
+                                h = (int(y2) - int(y1))
                                 if str(detection['Class_ID']) != "nan":
-                                    if detection['Class_ID'] in (0,1,3,16):
-                                        _, center_y = sorted((int(y1), int(y2)))
-                                    elif detection['Class_ID'] in (2,5):
-                                        center_y = (int(y1)+ int(y2))/2
+                                    # if detection['Class_ID'] in (0,1,3,16):
+                                    #     _, center_y = sorted((int(y1), int(y2)))
+                                    # elif detection['Class_ID'] in (2,5):
+                                    center_y = (int(y1)+ int(y2))/2
                                 else:
-                                    _, center_y = sorted((int(y1), int(y2)))
+                                    center_y = (int(y1)+ int(y2))/2
+                                    # _, center_y = sorted((int(y1), int(y2)))
                                 trk_id = int(detection['Tracker_ID'])
-                                self.trackDict[trk_id].append((int(center_x),int(center_y)))
+                                self.trackDict[trk_id].append((int(center_x), int(center_y),w, h))
                                 detection_array.append(int(x1))#0
                                 detection_array.append(int(y1))#1
                                 detection_array.append(int(x2))#2
@@ -177,7 +180,6 @@ class PostProcess():
                                     # detection_array.append(self.trackDict[trk_id][-2][1])#13
                                     detection_array.append(self.trackDict)#12
                                     del self.trackDict[trk_id][0]
-                                detection_array.extend([0])#13
                                 outer_array.append(detection_array)
 
                             elif not pd.isna(detection['Class_ID']):
@@ -193,7 +195,7 @@ class PostProcess():
                                 detection_array.append(int(y2))
                                 detection_array.append(detection['Conf_Score']/100)
                                 detection_array.append(detection['Class_ID'])
-                                detection_array.extend([0, 0, 0, 0, 0, 0, 0, 0]) # Placeholder values. The visualizer function doesn't need these but kept in places to align with the indices.
+                                detection_array.extend([0, 0, 0, 0, 0, 0, 0]) # Placeholder values. The visualizer function doesn't need these but kept in places to align with the indices.
                                 outer_array.append(detection_array)
 
                             else:
@@ -205,8 +207,8 @@ class PostProcess():
                                 outer_array = [[0,0,0,0,0,0,0,0,0,0,0,0,0]]
 
                         image = self.Visualize.drawTracker(outer_array, frame, framecounter)
-                        # cv2.imshow('frame', image)
-                        # cv2.waitKey(10)
+                        cv2.imshow('frame', image)
+                        cv2.waitKey(10)
                         self.video_writer.write(image)
 
             else:

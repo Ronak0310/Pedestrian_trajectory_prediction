@@ -25,7 +25,6 @@ from datetime import datetime, timedelta
 from copy import deepcopy
 import time
 import shutil
-
 import sys
 sys.path.append('./yolo_v5_main_files')
 from models.common import DetectMultiBackend, AutoShape
@@ -155,7 +154,6 @@ class Inference():
         
         # Parameters for velocity estimation
         self.trackDict = defaultdict(list)
-        self.boxDict = defaultdict(list)
 
         self.runInference()
     
@@ -177,24 +175,25 @@ class Inference():
             x2 = int(detection[2])
             y2 = int(detection[3])
             class_id = detection[5]
-            center_x = (detection[0] + detection[2])/2 
+            center_x = (detection[0] + detection[2])/2
+            center_y = (detection[1] + detection[3])/2
+            w = (detection[2] - detection[0])
+            h = (detection[3] - detection[1])
 
-            if class_id in (0,1,3,16):
-                _, max_y = sorted((detection[1], detection[3]))
-            elif class_id in (2,5):
-                max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
-            else:
-                max_y = (detection[1] + detection[3])/2
+            # if class_id in (0,1,3,16):
+            #     _, max_y = sorted((detection[1], detection[3]))
+            # elif class_id in (2,5):
+            #     max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            # else:
+            max_y = (detection[1] + detection[3])/2
 
             trackID = int(detection[9])
-            self.trackDict[trackID].append((int(center_x), int(max_y)))
-            self.boxDict[trackID].append((x1,y1,x2,y2))
+            self.trackDict[trackID].append((int(center_x), int(max_y),w, h))
             
             if len(self.trackDict[trackID]) > 10: 
-                output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1], self.trackDict, self.boxDict])
+                output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1], self.trackDict])
                 trajectory_array.append(output_array)
                 del self.trackDict[trackID][0]
-                del self.boxDict[trackID][0]
 
         return trajectory_array
     
@@ -223,6 +222,7 @@ class Inference():
             temp_dict['BBOX_TopLeft'] = (x1, y1)
             temp_dict['BBOX_BottomRight'] = (x2, y2)
             temp_dict['Center_pt'] = (center_x, max_y)
+            temp_dict['pt_minus_ct'] = (center_x-325.841511, max_y-236.778442)
 
             output.append(temp_dict)
         return output
@@ -253,6 +253,7 @@ class Inference():
             temp_dict['BBOX_TopLeft'] = (x1, y1)
             temp_dict['BBOX_BottomRight'] = (x2, y2)
             temp_dict['Center_pt'] = (center_x, max_y)
+            temp_dict['pt_minus_ct'] = (center_x-325.841511, max_y-236.778442)
 
         return output
     
@@ -296,7 +297,6 @@ class Inference():
                 break
             storing_output = {}
             storing_output["Video_Internal_Timer"]= videoTimer
-            print(framecount)
             # Image Preprocessing for inference
             t1 = time_sync()
             im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
@@ -377,8 +377,8 @@ class Inference():
                 
                 t5 = time_sync()
                 dt[3] += t5 - t4
-                # if (t3 - t2)!=0:
-                #     print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                if (t3 - t2)!=0:
+                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
 
                 # show live detection if view_img flag is true
                 if self.view_img:
@@ -387,7 +387,8 @@ class Inference():
 
                 # save images after dtections if inference mode is folder of images
                 if self.inference_mode == 'Folder':
-                    img_name = path.split('\\')[-1]
+                    # img_name = path.split('\\')[-1]   # For Windows
+                    img_name = path.split('/')[-1]  # For Linux
                     if framecount == 1:
                         img_path = os.path.join(self.output_dir_path,"inference_imgs")
                         os.mkdir(img_path)
@@ -396,7 +397,7 @@ class Inference():
                 if self.save_infer_video:
                     # save video infernce 
                     if self.inference_mode == 'Folder':
-                        if framecount == 1:  # new video
+                        if framecount == 1:  # take only first frame
                             final_path = self.output_dir_path
                             w = 640 
                             h = 512 
@@ -404,8 +405,9 @@ class Inference():
                         vid_writer.write(frame)  
 
                     elif self.inference_mode == 'Video':
-                            if framecount == 1:  # new video
-                                final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])
+                            if framecount == 1:  # ntake only first frame
+                                # final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])  # For Windows
+                                final_path = os.path.join(self.output_dir_path, self.output.split('/')[-1]) # For Linux
                                 if not final_path.endswith('.mp4' or '.avi'):
                                     final_path = f"{final_path}.avi"
                                 w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
