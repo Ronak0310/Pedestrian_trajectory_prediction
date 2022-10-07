@@ -13,6 +13,7 @@ import torch
 import cv2
 import numpy as np
 import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import argparse
 from pathlib import Path
 import math
@@ -35,6 +36,8 @@ from hubconf import custom
 
 from sort_yoloV5 import Sort
 from visualizer import Visualizer
+from visualizer import Colors
+from sgan_visulization import Predict_trajectory
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]
@@ -59,6 +62,8 @@ class Inference():
         cudnn.benchmark = True
         self.save_infer_video = 1
         self.save_annotations = Save_annotations
+        self.color = Colors()
+        self.sgan = Predict_trajectory()
         
         # Checking input
         if os.path.isfile(input):
@@ -149,11 +154,13 @@ class Inference():
         self.model = model
 
         # Initialize Tracker
-        self.Objtracker = Sort(max_age=40, min_hits=7, iou_threshold=0.3)
+        # self.Objtracker = Sort(max_age=40, min_hits=7, iou_threshold=0.3)
+        self.Objtracker = Sort(max_age=1, min_hits=3, iou_threshold=0.1)
         self.Objtracker.reset_count()
         
         # Parameters for velocity estimation
         self.trackDict = defaultdict(list)
+        self.sgandict = defaultdict(list)
 
         self.runInference()
     
@@ -191,11 +198,35 @@ class Inference():
             self.trackDict[trackID].append((int(center_x), int(max_y),w, h))
             
             if len(self.trackDict[trackID]) > 10: 
-                output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1], self.trackDict])
+                # output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1], self.trackDict])
+                output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1]])
                 trajectory_array.append(output_array)
                 del self.trackDict[trackID][0]
 
         return trajectory_array
+    
+    def get_prediction(self, prediction_array):
+        for detection in self.tracker:
+            x1 = int(detection[0])
+            y1 = int(detection[1])
+            x2 = int(detection[2])
+            y2 = int(detection[3])
+            class_id = detection[5]
+            center_x = (detection[0] + detection[2])/2
+            center_y = (detection[1] + detection[3])/2
+            trackID = int(detection[9])
+            self.sgandict[trackID].append([center_x, center_y])
+
+            if len(self.sgandict[trackID])>9:
+                del self.sgandict[trackID][0]
+                prediction = self.sgan.predict(self.sgandict, trackID)
+                arr = np.append(detection, [prediction])
+                prediction_array.append(arr)
+        
+        return prediction_array
+
+
+        # return None
     
     def UpdateStorage_withTracker(self, output_dictionary):
         output = []
@@ -222,7 +253,6 @@ class Inference():
             temp_dict['BBOX_TopLeft'] = (x1, y1)
             temp_dict['BBOX_BottomRight'] = (x2, y2)
             temp_dict['Center_pt'] = (center_x, max_y)
-            temp_dict['pt_minus_ct'] = (center_x-325.841511, max_y-236.778442)
 
             output.append(temp_dict)
         return output
@@ -253,7 +283,6 @@ class Inference():
             temp_dict['BBOX_TopLeft'] = (x1, y1)
             temp_dict['BBOX_BottomRight'] = (x2, y2)
             temp_dict['Center_pt'] = (center_x, max_y)
-            temp_dict['pt_minus_ct'] = (center_x-325.841511, max_y-236.778442)
 
         return output
     
@@ -334,6 +363,8 @@ class Inference():
                 for c in pred[:, -1].unique():
                     n = (pred[:, -1] == c).sum()  # detections per class
                     s += f"{n} {self.names[int(c)]}{'s' * (n > 1)}, "  # add to string    
+                
+                confs = pred[:, 4]
         
             # Save the images or videos
             if self.inference_mode == 'SingleImage':
@@ -349,50 +380,87 @@ class Inference():
             elif self.inference_mode == 'Video' or self.inference_mode == 'Folder':
                 # Update the tracker
                 self.UpdateTracker(pred)
-
                 # Storing values for post-processing
                 if self.save_annotations:
                     annotation_count += 1
-                    storing_output["count"]= annotation_count
+                    storing_output["frame_number"]= annotation_count
                     self.Save_dets_to_txt(pred, annotation_count, im0.shape)
                     cv2.imwrite(f"{self.output_dir_path}/VID_frames/frame-{annotation_count}.png", im0)
 
-                    if len(self.tracker) > 0:
-                        output_data.extend(self.UpdateStorage_withTracker(storing_output))
-                    elif len(pred) > 0:
+                    if len(pred) > 0:
                         output_data.extend(self.UpdateStorage_onlyYolo(storing_output, pred))
                     else:
                         output_data.append(storing_output)
+                    if len(self.tracker) > 0:
+                        output_data.extend(self.UpdateStorage_withTracker(storing_output))
                 
                 # Visualize the detections on frames
                 trajectory_array = []
-                stored_trajectory = self.Trajectory_points(trajectory_array)
+                prediction_array = []
 
-                if len(self.tracker) > 0:
-                    frame = Visualize.drawTracker(stored_trajectory, im0, framecount)
-                elif len(pred) > 0:
-                    frame = Visualize.drawBBOX(pred, im0, framecount)
+                stored_trajectory = self.Trajectory_points(trajectory_array)
+                img = im0
+                if len(pred) > 0:
+                    img = Visualize.drawBBOX(pred, img, framecount)
                 else:
-                    frame = Visualize.drawEmpty(im0, framecount)
+                    img = Visualize.drawEmpty(img, framecount)
+                if len(self.tracker) > 0:
+                    img = Visualize.drawTracker(stored_trajectory, img, framecount)
+                    prediction = self.get_prediction(prediction_array)
+                    print(prediction)
                 
                 t5 = time_sync()
                 dt[3] += t5 - t4
-                if (t3 - t2)!=0:
-                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                # if (t3 - t2)!=0:
+                #     print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+
+                # # visualize in other way...                
+                # img = im0
+                # if len(self.tracker) > 0:
+                #     for j, (out, conf) in enumerate(zip(self.tracker, confs)):
+                #         bboxes = out[0:4]
+                #         id = int(out[-1])
+                #         cls = int(out[5])
+                #         # print(bboxes[0])
+                #         # print(cls)
+                #         cls = self.names[cls] if self.names else cls
+                #         color = self.color(int(out[5]))
+                #         img = cv2.rectangle(img, (int(bboxes[0]),int(bboxes[1])),(int(bboxes[2]),int(bboxes[3])), color,1,cv2.LINE_AA)
+                #         self.textColor = (255,255,255)
+                #         TrackerLabel = f'Track ID: {id}'
+                #         (w1, h1), _ = cv2.getTextSize(
+                #             TrackerLabel, 0, fontScale=0.3, thickness=1
+                #         )
+                #         baseLabel = f'{cls} {round(conf.item()*100,1)}%'
+                #         (w2, h2), _ = cv2.getTextSize(
+                #             baseLabel, 0, fontScale=0.3, thickness=1
+                #         )
+                #         img = cv2.rectangle(img, (int(bboxes[0]), int(bboxes[1]) - 20), (int(bboxes[0]) + w1, int(bboxes[1])), color, -1, cv2.LINE_AA)
+                #         img = cv2.rectangle(img, (int(bboxes[0]), int(bboxes[1]) - 10), (int(bboxes[0]) + w2, int(bboxes[1])), color, -1, cv2.LINE_AA)
+                #         img = cv2.putText(
+                #             img, TrackerLabel, (int(bboxes[0]), int(bboxes[1]) - 13), 
+                #             0, 0.3, self.textColor, 1, cv2.LINE_AA
+                #         )
+                #         img = cv2.putText(
+                #             img, baseLabel, (int(bboxes[0]), int(bboxes[1]) - 3), 
+                #             0, 0.3, self.textColor, 1, cv2.LINE_AA
+                #         )
 
                 # show live detection if view_img flag is true
                 if self.view_img:
-                    cv2.imshow('frame', frame)
+                    cv2.imshow('frame', img)
                     cv2.waitKey(1)
+                
 
                 # save images after dtections if inference mode is folder of images
                 if self.inference_mode == 'Folder':
-                    # img_name = path.split('\\')[-1]   # For Windows
-                    img_name = path.split('/')[-1]  # For Linux
+                    img_name = path.split('\\')[-1]   # For Windows
+                    # img_name = path.split('/')[-1]  # For Linux
                     if framecount == 1:
                         img_path = os.path.join(self.output_dir_path,"inference_imgs")
                         os.mkdir(img_path)
-                    cv2.imwrite(f"{img_path}/{img_name}", frame)
+                    # cv2.imwrite(f"{img_path}/{img_name}", frame)
+                    cv2.imwrite(f"{img_path}/{img_name}", img)
 
                 if self.save_infer_video:
                     # save video infernce 
@@ -401,19 +469,21 @@ class Inference():
                             final_path = self.output_dir_path
                             w = 640 
                             h = 512 
-                            vid_writer = cv2.VideoWriter(f"{final_path}/out.avi", cv2.VideoWriter_fourcc(*'XVID'), 30, (w, h))
-                        vid_writer.write(frame)  
+                            vid_writer = cv2.VideoWriter(f"{final_path}/out.avi", cv2.VideoWriter_fourcc(*'XVID'), 10, (w, h))
+                        # vid_writer.write(frame)
+                        vid_writer.write(img)  
 
                     elif self.inference_mode == 'Video':
                             if framecount == 1:  # ntake only first frame
-                                # final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])  # For Windows
-                                final_path = os.path.join(self.output_dir_path, self.output.split('/')[-1]) # For Linux
+                                final_path = os.path.join(self.output_dir_path, self.output.split('\\')[-1])  # For Windows
+                                # final_path = os.path.join(self.output_dir_path, self.output.split('/')[-1]) # For Linux
                                 if not final_path.endswith('.mp4' or '.avi'):
                                     final_path = f"{final_path}.avi"
                                 w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                                 h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                                 vid_writer = cv2.VideoWriter(final_path, cv2.VideoWriter_fourcc(*'XVID'), self.fps, (w, h))
-                            vid_writer.write(frame)
+                            # vid_writer.write(frame)
+                            vid_writer.write(img)
 
         if self.inference_mode == 'Video' or self.inference_mode == 'Folder':    
             vid_writer.release()
@@ -428,7 +498,8 @@ class Inference():
 
         if self.save_annotations:
             df = pd.DataFrame(output_data)
-            name = str(self.output.split('\\')[-1].split('.')[0])
+            name = str(self.output.split('\\')[-1].split('.')[0]) # For Windows
+            # name = str(self.output.split('/')[-1].split('.')[0]) # For Linux
             df.to_csv(f"{self.output_dir_path}/{name}_raw.csv")
         
 

@@ -328,18 +328,6 @@ class Inference():
                 confs = pred[:, 4]
                 clss = pred[:, 5]    
 
-                # draw boxes for visualization
-                # img = im0
-                # if len(self.tracker) > 0:
-                    # for j, (output, conf) in enumerate(zip(self.tracker, confs)):
-                    #     bboxes = output[0:4]
-                    #     id = output[4]
-                    #     cls = output[5]
-                    #     img = cv2.rectangle(img, (bboxes[0],bboxes[1]),(bboxes[2],bboxes[3]), (0,255,0),1,cv2.LINE_AA)
-                    #     img = cv2.putText(img, f"{id}:{cls}",(bboxes[0],bboxes[1]-4), 0, 0.3, (0,0,255), 1, cv2.LINE_AA)
-
-                # cv2.imshow('frame', img)
-                # cv2.waitKey(1)
                         
 
         
@@ -384,6 +372,19 @@ class Inference():
                     dt[3] += t5 - t4
                     if (t3 - t2)!=0:
                         print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                    
+                    # draw boxes for visualization
+                    img = im0
+                    if len(self.tracker) > 0:
+                        for j, (output, conf) in enumerate(zip(self.tracker, confs)):
+                            bboxes = output[0:4]
+                            id = output[4]
+                            cls = output[5]
+                            img = cv2.rectangle(img, (bboxes[0],bboxes[1]),(bboxes[2],bboxes[3]), (0,255,0),1,cv2.LINE_AA)
+                            img = cv2.putText(img, f"{id}:{cls}",(bboxes[0],bboxes[1]-4), 0, 0.3, (0,0,255), 1, cv2.LINE_AA)
+
+                    cv2.imshow('frame', img)
+                    cv2.waitKey(1)
 
                     if self.save_infer_video:
                         if framecount == 1:  # new video

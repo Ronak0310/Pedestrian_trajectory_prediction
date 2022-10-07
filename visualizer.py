@@ -23,6 +23,77 @@ class Colors:
 
 colors = Colors()
 
+class Minimap():
+    def __init__(self, minimap_type='Terrain', minimap_coords=((361, 0), (638, 190)), trajectory_update_rate=30, trajectory_retain_duration=250):
+        self.homography_CameraToMap = [[-7.69726646e-01, -3.92284300e+00,  5.63221161e+02],
+                                      [-2.52034888e-01, -7.34562016e+00,  1.38008988e+03],
+                                      [-4.02346894e-04, -8.87086124e-03, 1.00000000e+00]]
+       
+        if minimap_type == 'Terrain':
+            self.Minimap = cv2.imread('./images/img2.png')
+        elif minimap_type == 'Road':
+            self.Minimap = cv2.imread('./map_files/map_cropped.png')
+        else:
+            print("Wrong Minimap type...defaulting to 'Terrain'")
+            self.Minimap = cv2.imread('./images/img2.png')
+        
+        # Location in the main image to insert minimap
+        self.locationMinimap = minimap_coords
+        original_width = self.Minimap.shape[1]
+        original_height = self.Minimap.shape[0]
+ 
+        # Resizing the minimap accordingly
+        resize_width = self.locationMinimap[1][0] - self.locationMinimap[0][0]
+        resize_height = self.locationMinimap[1][1] - self.locationMinimap[0][1]
+
+        self.Minimap = cv2.resize(self.Minimap, (resize_width, resize_height))
+
+        self.width_scaling = resize_width/original_width
+        self.height_scaling = resize_height/original_height
+
+        self.realtime_trajectory = defaultdict(list)
+        self.updateRate = trajectory_update_rate
+        self.trajectory_retain_duration = trajectory_retain_duration
+
+    def projection_image_to_map(self, x, y):
+        """Converts image coordinates to minimap coordinates using loaded the homography matrix
+
+        Returns:
+          (int, int): x, y coordinates with respective to scaled minimap
+        """
+        pt1 = np.array([x, y, 1])
+        pt1 = pt1.reshape(3, 1)
+        pt2 = np.dot(self.homography_CameraToMap, pt1)
+        pt2 = pt2 / pt2[2]
+        return (int(pt2[0]*self.width_scaling), int(pt2[1]*self.height_scaling))
+
+    def projection_image_to_map_noScaling(self, x, y):
+        """Converts image coordinates to minimap coordinates using loaded the homography matrix
+
+        Returns:
+          (int, int): x, y coordinates with respective to scaled minimap
+        """
+        pt1 = np.array([x, y, 1])
+        pt1 = pt1.reshape(3, 1)
+        pt2 = np.dot(self.homography_CameraToMap, pt1)
+        pt2 = pt2 / pt2[2]
+        return (int(pt2[0]), int(pt2[1]))
+
+    def update_realtime_trajectory(self, current_frameNumber):
+        """Responsible for deleting trajectory points for each tracker id after 'self.trajectory_retain_duration' frames
+
+        Returns:
+            None
+        """
+        if self.realtime_trajectory:
+            for keys, values in list(self.realtime_trajectory.items()):
+                if len(values) == 0:
+                    del self.realtime_trajectory[keys]
+                elif current_frameNumber - values[0][3] > self.trajectory_retain_duration:
+                    del self.realtime_trajectory[keys][0]
+
+
+
 class Visualizer():
     def __init__(self, names):
         
@@ -30,15 +101,39 @@ class Visualizer():
         self.names = names
         self.count = 0  # variable to update default_dict after certain number of count
         self.kf = KalmanFilter()
-            
+        self.showMinimap = False
+        self.Minimap_obj = Minimap(trajectory_update_rate=5, trajectory_retain_duration=250)
+        self.showTrajectory = False
+    
+    def draw_realtime_trajectory(self, minimap_img):
+        """Displays the recorded trajectory onto the minimap
+
+        Returns:
+            None
+        """
+        if self.Minimap_obj.realtime_trajectory:
+            for keys, values in self.Minimap_obj.realtime_trajectory.items():
+                for v in values:
+                    # color = self.classID_dict[v[2]][1]
+                    color = colors(v[2])
+                    cv2.circle(minimap_img, (int(v[0]),int(v[1])), 1, color, -1, cv2.LINE_AA)
+        return minimap_img 
+    
     def drawEmpty(self, frame, frameCount):
         """For images with no detections, displaying minimap and updating trajectory values
         
         Returns:
             frame (image): Image with minimap (if minimap enabled)
         """     
-
-        return frame
+        if self.showMinimap:
+            minimap_img = self.Minimap_obj.Minimap.copy()
+            if self.showTrajectory:
+                minimap_img = self.draw_realtime_trajectory(minimap_img)
+                self.Minimap_obj.update_realtime_trajectory(frameCount)
+            frame[self.Minimap_obj.locationMinimap[0][1]:self.Minimap_obj.locationMinimap[1][1], self.Minimap_obj.locationMinimap[0][0]:self.Minimap_obj.locationMinimap[1][0]] = minimap_img
+            return frame
+        else:
+            return frame
     
     def drawBBOX(self, xyxy, frame, frameCount):
         """Draws just the BBOX with the class name and confidence score
@@ -50,6 +145,12 @@ class Visualizer():
         Returns:
             frame (image): Image with all the BBOXes
         """
+        if self.showMinimap:
+            minimap_img = self.Minimap_obj.Minimap.copy()
+            if self.showTrajectory:
+                minimap_img = self.draw_realtime_trajectory(minimap_img)
+                self.Minimap_obj.update_realtime_trajectory(frameCount)
+        
         for detection in xyxy:  
             x1, y1, x2, y2 = detection[0:4]
             x1 = int(x1)
@@ -88,6 +189,16 @@ class Visualizer():
                 0, 0.3, self.textColor, 1, cv2.LINE_AA
             )
 
+            if self.showMinimap:
+                # Converting coordinates from image to map
+                # Just using the larger y value because BBOX center is not were the foot/wheels of the classes are. So center point taken is the center of the bottom line of BBOX
+                _, max_y = sorted((y1, y2))
+                point_coordinates = self.Minimap_obj.projection_image_to_map((x1+x2)/2, max_y)
+                cv2.circle(minimap_img, point_coordinates, 1, color, -1, cv2.LINE_AA)
+
+        if self.showMinimap:      
+            frame[self.Minimap_obj.locationMinimap[0][1]:self.Minimap_obj.locationMinimap[1][1], self.Minimap_obj.locationMinimap[0][0]:self.Minimap_obj.locationMinimap[1][0]] = minimap_img
+
 
         return frame
 
@@ -101,6 +212,12 @@ class Visualizer():
         Returns:
             image: Image with tracker id and bbox
         """
+        
+        if self.showMinimap:
+            minimap_img = self.Minimap_obj.Minimap.copy()
+            if self.showTrajectory:
+                minimap_img = self.draw_realtime_trajectory(minimap_img)
+                self.Minimap_obj.update_realtime_trajectory(frameCount)
         
         for detection in trackers:
             x1, y1, x2, y2 = detection[0:4]
@@ -116,8 +233,8 @@ class Visualizer():
             color = colors(classID)
             cls = self.names[classID] if self.names else classID
 
-            cx1, cy1 = int(detection[10]), int(detection[11])   # previous frame points
-            track_pts = detection[-1]
+            # cx1, cy1 = int(detection[10]), int(detection[11])   # previous frame points
+            # track_pts = detection[-1]
             
             # Displays the main bbox and add overlay to make bbox transparent
             overlay = frame.copy()
@@ -185,5 +302,27 @@ class Visualizer():
             #                  (int(pred_box_right[0]), int(pred_box_right[1])), 
             #                  (0,0,255), thickness=1, lineType=cv2.LINE_AA)
 
+            if self.showMinimap:
+                # Converting coordinates from image to map
+                # Just using the larger y value because BBOX center is not were the foot/wheels of the classes are. So center point taken is the center of the bottom line of BBOX
+                _, max_y = sorted((y1, y2))
+                point_coordinates = self.Minimap_obj.projection_image_to_map((x1+x2)/2, max_y)
+
+                if self.showTrajectory:
+                  if frameCount % self.Minimap_obj.updateRate == 0:
+                      self.Minimap_obj.realtime_trajectory[tracker_id].append((point_coordinates[0], point_coordinates[1], classID, frameCount))
+            
+                cv2.circle(minimap_img, point_coordinates, 1, color, -1, cv2.LINE_AA)
+                  
+                # Plotting the text
+                textSize, _ = cv2.getTextSize(str(tracker_id), cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+                rectangle_start_coord = (point_coordinates[0] + 3, point_coordinates[1] - textSize[1] - 5)
+                rectangle_end_coord = (point_coordinates[0] + textSize[0] + 3, point_coordinates[1])
+                
+                cv2.rectangle(minimap_img, rectangle_start_coord, rectangle_end_coord, color, -1)
+                cv2.putText(minimap_img, str(tracker_id), tuple((point_coordinates[0] + 3, point_coordinates[1] - 3)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, self.textColor, 1, cv2.LINE_AA)
+        
+        if self.showMinimap:
+            frame[self.Minimap_obj.locationMinimap[0][1]:self.Minimap_obj.locationMinimap[1][1], self.Minimap_obj.locationMinimap[0][0]:self.Minimap_obj.locationMinimap[1][0]] = minimap_img
 
         return frame

@@ -8,16 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-*.pt
-*.mp4
-*.avi
-*.exe
-*.ipynb
-*.csv
-*.zip
-*.txt
 build/
-results/
 develop-eggs/
 dist/
 downloads/
@@ -56,7 +47,6 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
-*.py,cover
 .hypothesis/
 .pytest_cache/
 
@@ -68,7 +58,6 @@ coverage.xml
 *.log
 local_settings.py
 db.sqlite3
-db.sqlite3-journal
 
 # Flask stuff:
 instance/
@@ -100,12 +89,8 @@ ipython_config.py
 #   install all needed dependencies.
 #Pipfile.lock
 
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
-__pypackages__/
-
-# Celery stuff
+# celery beat schedule file
 celerybeat-schedule
-celerybeat.pid
 
 # SageMath parsed files
 *.sage.py
@@ -136,3 +121,20 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Cython eval code
+*.c
+*.html
+
+# OS X
+.DS_Store
+.Spotlight-V100
+.Trashes
+._*
+
+# ReID
+reid-data/
+log/
+saved-models/
+model-zoo/
+debug*
