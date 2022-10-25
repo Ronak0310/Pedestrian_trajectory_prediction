@@ -57,9 +57,12 @@ class Predict_trajectory():
         generator = self.get_generator(self.checkpoint)
         _args = AttrDict(self.checkpoint['args'])
 
+        width = 512
+        height = 640
         # Code for obs trajectory
         p1 = np.array(dc[trk_id][:]).T
-        obs1 = np.array([p1[0][-9:-1], p1[1][-9:-1]]).astype(np.float32)
+        # obs1 = np.array([p1[0][-9:-1], p1[1][-9:-1]]).astype(np.float32)
+        obs1 = np.array([p1[0][:], p1[1][:]]).astype(np.float32)
         p1_ = torch.tensor(obs1).view((1,2,8))
         ## only one object
         obs_traj_try = p1_.permute(2,0,1).cuda()
@@ -75,7 +78,7 @@ class Predict_trajectory():
 
 
         num_peds_in_seq = []
-        num_peds_considered = len(dc.keys())
+        num_peds_considered = 1 #len(dc.keys())
         num_peds_in_seq.append(num_peds_considered)
         num_peds_in_seq = 1
         cum_start_idx = [0] + np.cumsum(num_peds_in_seq).tolist()

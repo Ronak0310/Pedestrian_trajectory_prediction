@@ -5,7 +5,7 @@ Usage - sources and formats:
     $ python path/to/inference.py --input path/to/video(or)image file(.mp4/.mkv/.avi or .jpg/.png) | path/to/folder of images
                                   --model_weights path/to/trained_weights(.pt)
                                   --output path/to/save/results
-                                  --imgSize 480 or 640    # image size based on your model size
+                                  --imgSize 480 or 640    # image size based on your input image size
                                   --Save_annotations   # boolian argument to save annotations and images along with inference
 """
 
@@ -175,7 +175,7 @@ class Inference():
         else:
             self.tracker = self.Objtracker.update()
         
-    def Trajectory_points(self, trajectory_array):    
+    def Trajectory_points(self, trajectory_array, frameCount):    
         for detection in self.tracker:
             x1 = int(detection[0])
             y1 = int(detection[1])
@@ -192,42 +192,36 @@ class Inference():
             # elif class_id in (2,5):
             #     max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
             # else:
-            max_y = (detection[1] + detection[3])/2
 
             trackID = int(detection[9])
-            self.trackDict[trackID].append((int(center_x), int(max_y),w, h))
+            self.trackDict[trackID].append((int(center_x), int(center_y),w, h))
             
-            if len(self.trackDict[trackID]) > 10: 
-                # output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1], self.trackDict])
-                output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1]])
+            if len(self.trackDict[trackID]) > 12: 
+                output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1], self.trackDict])
+                # output_array = np.append(detection, [self.trackDict[trackID][-2][0], self.trackDict[trackID][-2][1]])
                 trajectory_array.append(output_array)
                 del self.trackDict[trackID][0]
 
         return trajectory_array
     
-    def get_prediction(self, prediction_array):
+    def get_prediction(self, prediction_array, frameCount):
         for detection in self.tracker:
-            x1 = int(detection[0])
-            y1 = int(detection[1])
-            x2 = int(detection[2])
-            y2 = int(detection[3])
-            class_id = detection[5]
             center_x = (detection[0] + detection[2])/2
             center_y = (detection[1] + detection[3])/2
             trackID = int(detection[9])
+
+            # if frameCount % 5 == 0:
             self.sgandict[trackID].append([center_x, center_y])
 
-            if len(self.sgandict[trackID])>9:
+            if len(self.sgandict[trackID])>8:
                 del self.sgandict[trackID][0]
+                # print(self.sgandict[trackID])
                 prediction = self.sgan.predict(self.sgandict, trackID)
-                arr = np.append(detection, [prediction])
-                prediction_array.append(arr)
+                prediction_array.append(prediction)
         
         return prediction_array
 
 
-        # return None
-    
     def UpdateStorage_withTracker(self, output_dictionary):
         output = []
         for detection in self.tracker:
@@ -239,12 +233,12 @@ class Inference():
             class_id = detection[5]
             center_x = (detection[0] + detection[2])/2 
 
-            if class_id in (0,1,3,16):
-                _, max_y = sorted((detection[1], detection[3]))
-            elif class_id in (2,5):
-                max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
-            else:
-                max_y = (detection[1] + detection[3])/2
+            # if class_id in (0,1,3,16):
+            #     _, max_y = sorted((detection[1], detection[3]))
+            # elif class_id in (2,5):
+            #     max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            # else:
+            max_y = (detection[1] + detection[3])/2
 
             x1 = int(detection[0])
             y1 = int(detection[1])
@@ -269,12 +263,12 @@ class Inference():
             class_id = detection[5]
             center_x = (detection[0] + detection[2])/2 
 
-            if class_id in (0,1,3,16):
-                _, max_y = sorted((detection[1], detection[3]))
-            elif class_id in (2,5):
-                max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
-            else:
-                max_y = (detection[1] + detection[3])/2
+            # if class_id in (0,1,3,16):
+            #     _, max_y = sorted((detection[1], detection[3]))
+            # elif class_id in (2,5):
+            #     max_y = (detection[1] + detection[3])/2     # Center of bbox for classes other than Escooter, Cyclist, and Pedestrian
+            # else:
+            max_y = (detection[1] + detection[3])/2
             
             x1 = int(detection[0])
             y1 = int(detection[1])
@@ -398,7 +392,7 @@ class Inference():
                 trajectory_array = []
                 prediction_array = []
 
-                stored_trajectory = self.Trajectory_points(trajectory_array)
+                stored_trajectory = self.Trajectory_points(trajectory_array, framecount)
                 img = im0
                 if len(pred) > 0:
                     img = Visualize.drawBBOX(pred, img, framecount)
@@ -406,13 +400,17 @@ class Inference():
                     img = Visualize.drawEmpty(img, framecount)
                 if len(self.tracker) > 0:
                     img = Visualize.drawTracker(stored_trajectory, img, framecount)
-                    prediction = self.get_prediction(prediction_array)
-                    print(prediction)
-                
+
+                    # visualize prediction from the SGAN
+                    prediction = self.get_prediction(prediction_array, framecount)
+                    for pred in prediction:
+                        for i in pred:
+                            cv2.circle(img, (int(i[0]),int(i[1])), 1, (255,0,0), -1, cv2.LINE_AA)
+            
                 t5 = time_sync()
                 dt[3] += t5 - t4
-                # if (t3 - t2)!=0:
-                #     print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
+                if (t3 - t2)!=0:
+                    print(f'{s}Done. ({1/(t3 - t2):.3f}fps)(Post: {((t5 - t4)*1000):.3f}ms)')
 
                 # # visualize in other way...                
                 # img = im0
