@@ -16,7 +16,6 @@ __pycache__/
 *.csv
 *.zip
 *.txt
-sgan/
 build/
 results/
 develop-eggs/
