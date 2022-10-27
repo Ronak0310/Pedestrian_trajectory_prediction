@@ -10,11 +10,11 @@ import math
 from attrdict import AttrDict
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
-sys.path.append('./sgan/sgan/data')
+sys.path.append('./sgan_main_files/sgan/data')
 from trajectories import TrajectoryDataset, seq_collate
 from loader import data_loader
 
-sys.path.append('./sgan/')
+sys.path.append('./sgan_main_files')
 from sgan.models import TrajectoryGenerator
 from sgan.losses import displacement_error, final_displacement_error
 from sgan.utils import relative_to_abs, get_dset_path
