@@ -57,10 +57,18 @@ class Predict_trajectory():
         generator = self.get_generator(self.checkpoint)
         _args = AttrDict(self.checkpoint['args'])
 
-        width = 512
-        height = 640
+        # params for image noramalization
+        normalize = True
+        width = 640
+        height = 512
+
         # Code for obs trajectory
         p1 = np.array(dc[trk_id][:]).T
+
+        if normalize:
+            # try normalization
+            p1[0] = p1[0]/width
+            p1[1] = p1[1]/height
         # obs1 = np.array([p1[0][-9:-1], p1[1][-9:-1]]).astype(np.float32)
         obs1 = np.array([p1[0][:], p1[1][:]]).astype(np.float32)
         p1_ = torch.tensor(obs1).view((1,2,8))
@@ -104,5 +112,10 @@ class Predict_trajectory():
 
         out_trj = pred_traj_fake[:,0,:].data
         out_trj = out_trj.cpu().detach().numpy()
+
+        if normalize:
+            # try normalization
+            out_trj[:,0] = out_trj[:,0]*width
+            out_trj[:,1] = out_trj[:,1]*height
 
         return out_trj

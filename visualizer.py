@@ -272,47 +272,46 @@ class Visualizer():
             )
             
             # # Use 2D kalman_filter to predict Future points in the moving direction
-            # # if type(track_pts)==defaultdict:
-            # for pt in self.traj_dict[tracker_id]:
-            #     cv2.circle(frame, (pt[0], pt[1]), 1, (0,0,255), -1, cv2.LINE_AA)
-            # if len(self.traj_dict[tracker_id])>10:
-            #     del self.traj_dict[tracker_id][0]
-            #     # First without moving avraging
-            #     # for pt in track_pts[tracker_id]:
-            #     for pt in self.traj_dict[tracker_id]:
-            #         # cv2.circle(frame, (pt[0], pt[1]), 1, (0,0,255), -1, cv2.LINE_AA)
-            #         predicted = self.kf.predict(pt[0], pt[1])
-            #         # w = pt[2]
-            #         # h = pt[3]
+            # if type(track_pts)==defaultdict:
+            for pt in self.traj_dict[tracker_id]:
+                # cv2.circle(frame, (pt[0], pt[1]), 1, (0,0,255), -1, cv2.LINE_AA)
+                if len(self.traj_dict[tracker_id])>12:
+                    del self.traj_dict[tracker_id][0]
 
-            #     pred = predicted
-            #     for i in range(10):
-            #         pred = self.kf.predict(pred[0], pred[1])
-            #         cv2.circle(frame, (int(pred[0]),int(pred[1])), 1, (255,0,0), -1, cv2.LINE_AA)
-            #     # pred_box_left = (int(pred[0]-w/2) , int(pred[1]-h/2))
-            #     # pred_box_right = (int(pred[0]+w/2) , int(pred[1]+h/2))
-            # #     cv2.rectangle(frame, (int(pred_box_left[0]), int(pred_box_left[1])), 
-            # #                  (int(pred_box_right[0]), int(pred_box_right[1])), 
-            # #                  (0,0,255), thickness=1, lineType=cv2.LINE_AA)
+                #     # First without moving avraging
+                #     # for pt in track_pts[tracker_id]:
+                #     for pt in self.traj_dict[tracker_id]:
+                #         # cv2.circle(frame, (pt[0], pt[1]), 1, (0,0,255), -1, cv2.LINE_AA)
+                #         predicted = self.kf.predict(pt[0], pt[1])
+                #         # w = pt[2]
+                #         # h = pt[3]
 
-                # Second with moving avaraging
-                # df = pd.DataFrame.from_dict(track_pts[tracker_id])
-                # df[2] = df[0].rolling(3).mean()
-                # df[3] = df[1].rolling(3).mean()
-                # df.dropna(inplace=True)
-                # df = df.reset_index(drop=True)
-                # x_y = (np.concatenate((np.array([df[2].tolist()]).T, np.array([df[3].tolist()]).T), axis=1))
-                # for pt in x_y:
-                #     cv2.circle(frame, (int(pt[0]),int(pt[1])), 1, (0,0,255), -1, cv2.LINE_AA)
-                #     predicted = self.kf.predict(pt[0], pt[1])
+                #     pred = predicted
+                #     for i in range(10):
+                #         pred = self.kf.predict(pred[0], pred[1])
+                #         cv2.circle(frame, (int(pred[0]),int(pred[1])), 1, (255,0,0), -1, cv2.LINE_AA)
+                #     # pred_box_left = (int(pred[0]-w/2) , int(pred[1]-h/2))
+                #     # pred_box_right = (int(pred[0]+w/2) , int(pred[1]+h/2))
+                # #     cv2.rectangle(frame, (int(pred_box_left[0]), int(pred_box_left[1])), 
+                # #                  (int(pred_box_right[0]), int(pred_box_right[1])), 
+                # #                  (0,0,255), thickness=1, lineType=cv2.LINE_AA)
 
-                # pred = predicted
-                # for i in range(10):
-                #     pred = self.kf.predict(pred[0], pred[1])
-                #     cv2.circle(frame, (int(pred[0]),int(pred[1])), 1, (255,0,0), -1, cv2.LINE_AA)
+                    # Second with moving avaraging
+                    df = pd.DataFrame.from_dict(self.traj_dict[tracker_id])
+                    df[2] = df[0].rolling(3).mean()
+                    df[3] = df[1].rolling(3).mean()
+                    df.dropna(inplace=True)
+                    df = df.reset_index(drop=True)
+                    x_y = (np.concatenate((np.array([df[2].tolist()]).T, np.array([df[3].tolist()]).T), axis=1))
+                    for pt in x_y:
+                        cv2.circle(frame, (int(pt[0]),int(pt[1])), 1, (0,0,255), -1, cv2.LINE_AA)
+                        predicted = self.kf.predict(pt[0], pt[1])
 
+                    pred = predicted
+                    for i in range(10):
+                        pred = self.kf.predict(pred[0], pred[1])
+                        cv2.circle(frame, (int(pred[0]),int(pred[1])), 1, (255,0,0), -1, cv2.LINE_AA)
 
-                # cv2.arrowedLine(frame, (cx1,cy1), (int(pred[0]),int(pred[1])), (255,0,0),1)
             
 
             if self.showMinimap:

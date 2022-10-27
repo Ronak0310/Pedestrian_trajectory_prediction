@@ -401,11 +401,11 @@ class Inference():
                 if len(self.tracker) > 0:
                     img = Visualize.drawTracker(stored_trajectory, img, framecount)
 
-                    # visualize prediction from the SGAN
-                    prediction = self.get_prediction(prediction_array, framecount)
-                    for pred in prediction:
-                        for i in pred:
-                            cv2.circle(img, (int(i[0]),int(i[1])), 1, (255,0,0), -1, cv2.LINE_AA)
+                    # # visualize prediction from the SGAN
+                    # prediction = self.get_prediction(prediction_array, framecount)
+                    # for pred in prediction:
+                    #     for i in pred:
+                    #         cv2.circle(img, (int(i[0]),int(i[1])), 1, (255,0,0), -1, cv2.LINE_AA)
             
                 t5 = time_sync()
                 dt[3] += t5 - t4
